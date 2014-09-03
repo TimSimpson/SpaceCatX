@@ -1,0 +1,22 @@
+import boost ;
+boost.use-project 1.55 ;
+
+using testing ;
+
+project BoostTestExample
+    :   requirements
+        <library>/boost//headers
+        <library>/boost//unit_test_framework
+    ;
+
+unit-test failed_check
+    :   failed_check.cpp
+    ;
+
+unit-test failed_require
+    :   failed_require.cpp
+    ;
+
+unit-test bad_memory
+    :   bad_memory.cpp
+    ;

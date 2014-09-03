@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include "CatClient.hpp"
-#include "Seeker.hpp"
 #include "tmi.hpp"
 
 template<typename ClientType>

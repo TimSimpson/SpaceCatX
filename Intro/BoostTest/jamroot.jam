@@ -1,0 +1,14 @@
+import boost ;
+boost.use-project 1.55 ;
+
+using testing ;
+
+project BoostTestExample
+    :   requirements
+        <library>/boost//headers
+        <library>/boost//unit_test_framework
+    ;
+
+unit-test test
+    :   test.cpp
+    ;

@@ -1,0 +1,20 @@
+import boost ;
+boost.use-project 1.55 ;
+
+project SimplestAutomatedTest
+    :   requirements
+        <library>/boost//headers
+    ;
+
+exe simple
+    :   simple.cpp
+    ;
+
+exe simple_bad
+    :   simple_bad.cpp
+    ;
+
+install exe
+    :   simple
+        simple_bad
+    ;

@@ -1,0 +1,12 @@
+exe simple
+    :   simple.cpp
+    ;
+
+exe hamster_edition
+    :   hamster_edition.cpp
+    ;
+
+install exe
+    :   simple
+        hamster_edition
+    ;

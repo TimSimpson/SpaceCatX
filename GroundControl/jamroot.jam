@@ -9,9 +9,34 @@ project GroundControl
         <library>/boost//headers
         <library>/boost//date_time
         <library>/boost//unit_test_framework
+        <include>src
+        <include>C:/Tools/Local/FakeIt/include
+        <include>C:/Tools/Local/gmock/gmock-1.7.0/include
+        <include>C:/Tools/Local/gmock/gmock-1.7.0/gtest/include
     ;
 
+#lib lib_gmock
+#    :
+#    :   <name>gmock
+#        <search>C:/Tools/Local/gmock/gmock-1.7.0/msvc/Latest/Debug
+#    :
+#    :   <include>C:/Tools/Local/gmock/gmock-1.7.0/include
+#    ;
 
+
+lib lib_gmock
+    :   #C:/Tools/Local/gmock/gmock-1.7.0/src/gmock-all.cc
+        #C:/Tools/Local/gmock/gmock-1.7.0/gtest/src/gtest.cc
+        C:/Tools/Local/gmock/gmock-1.7.0/fused-src/gmock-gtest-all.cc
+        #C:/Tools/Local/gmock/gmock-1.7.0/src/gmock-all.cc
+
+       # C:/Tools/Local/gmock/gmock-1.7.0/gtest/fused-src/gtest/gtest-all.cc
+    :   <include>C:/Tools/Local/gmock/gmock-1.7.0/include
+        <include>C:/Tools/Local/gmock/gmock-1.7.0
+        <include>C:/Tools/Local/gmock/gmock-1.7.0/gtest
+        <include>C:/Tools/Local/gmock/gmock-1.7.0/gtest/include
+        <define>GTEST_CREATE_SHARED_LIBRARY
+    ;
 
 exe client
     :   src/client.cpp
@@ -20,6 +45,16 @@ exe client
 exe GroundControl
     :   src/GroundControl.cpp
     ;
+
+unit-test CatTests
+    :   test/CatTests.cpp
+        lib_gmock
+    ;
+
+unit-test CatFakeItTests
+    :   test/CatFakeItTests.cpp
+    ;
+explicit CatFakeItTests ;
 
 install exe
     :   client
