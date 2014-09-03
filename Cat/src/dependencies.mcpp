@@ -1,0 +1,9 @@
+namespace boost::asio {
+    class io_service  { ~hfile=<boost/asio.hpp> };
+    class ip::tcp  { ~hfile=<boost/asio.hpp> };
+}
+
+
+namespace std {
+    class enable_shared_from_this { ~hfile=<memory> };
+}

@@ -1,0 +1,217 @@
+~import LP3_LOG_DEBUG;
+~import std::cout;
+~import boost::optional;
+~import std::string;
+~import std::vector;
+
+~import Lp3::Engine::Time::Clock;
+~import LP3_COROUTINE;
+~import Lp3::Engine::Coroutine::CoroutineState;
+~import Cat::Planet;
+~import Lp3::Engine::Gfx::Geometry::ScreenPoint;
+
+
+namespace Cat {
+
+    class SpaceCat {
+        ~block "cpp-include" {
+            #include <boost/lexical_cast.hpp>
+        }
+
+        private bool busy;
+        private bool crashed;
+        private ScreenPoint dest;
+        private ScreenPoint dir;
+        private float maxSpeed;
+        private CoroutineState state;
+        private ScreenPoint p;
+        private float accr = 8;
+        private float speed = 0;
+        private string text;
+        private std::vector<Planet> & planets;
+        private optional<string> orbit;
+
+        public: SpaceCat(float x, float y, std::vector<Planet> & planets)
+        :   busy(false)
+        ,   crashed(false)
+        ,   dest({x, y})
+        ,   maxSpeed(28)
+        ,   state()
+        ,   p({x, y})
+        ,   accr(8)
+        ,   speed(0)
+        ,   planets(planets)
+        ,   orbit(boost::none) {
+        }
+
+        public: string InputCommand(const string msg) {
+            if (msg == "status") {
+                return Status();
+            } else if (msg == "x") {
+                return str(boost::format("%d") % X());
+            } else if (msg == "y") {
+                return str(boost::format("%d") % Y());
+            }
+
+            if (busy) {
+                LP3_LOG_DEBUG("Cat is busy, you must wait!");
+                return "BUSY";
+            }
+            LP3_LOG_DEBUG("Cat is at (%d, %d).", p.X, p.Y);
+            LP3_LOG_DEBUG("CAT HAS RECEIVED MESSAGE: %s", msg);
+            if (msg.substr(0, 2) == "x+") {
+                const auto amount = boost::lexical_cast<int>(msg.substr(2));
+                LP3_LOG_DEBUG("Moving X by %s...", amount);
+                dest.X+= amount;
+                busy = true;
+                return "OK";
+            } else if (msg.substr(0, 2) == "y+") {
+                const auto amount = boost::lexical_cast<int>(msg.substr(2));
+                LP3_LOG_DEBUG("Moving Y by %s...", amount);
+                dest.Y+= amount;
+                busy = true;
+                return "OK";
+            } else if (msg.substr(0, 2) == "x-") {
+                const auto amount = boost::lexical_cast<int>(msg.substr(2));
+                LP3_LOG_DEBUG("Moving X by %s...", amount);
+                dest.X-= amount;
+                busy = true;
+                return "OK";
+            } else if (msg.substr(0, 2) == "y-") {
+                const auto amount = boost::lexical_cast<int>(msg.substr(2));
+                LP3_LOG_DEBUG("Moving Y by %s...", amount);
+                dest.Y-= amount;
+                return "OK";
+            } else {
+                return "WHAT YOU SAY?";
+            }
+        }
+
+        ScreenPoint calcDir() {
+            ScreenPoint newDir;
+            newDir.X = 0;
+            newDir.Y = 0;
+            if (dest.X > p.X) {
+                newDir.X = 1;
+            } else if (dest.X < p.X) {
+                newDir.X = -1;
+            }
+            if (dest.Y > p.Y) {
+                newDir.Y = 1;
+            } else if (dest.Y < p.Y) {
+                newDir.Y = -1;
+            }
+            return newDir;
+        }
+
+        public bool Crashed() const {
+            return crashed;
+        }
+
+        private void checkForHitPlanets() {
+            orbit = boost::none;
+            for(const Planet & planet : planets) {
+                if (pointMatch(p, planet.P(), 20, 20)) {
+                    text = str(boost::format("Crashed into %s!")
+                               % planet.Name());
+                    crashed = true;
+                    return;
+                }
+            }
+
+            for(const Planet & planet : planets) {
+                if (pointMatch(p, planet.P(), 40, 40)) {
+                    orbit = planet.Name();
+                }
+            }
+        }
+
+        public void move() {
+            p.X += dir.X * (speed * Clock::GetSpeedMod());
+            p.Y += dir.Y * (speed * Clock::GetSpeedMod());
+        }
+
+        public optional<string> Orbit() const {
+            return orbit;
+        }
+
+        public: int X() const {
+            return static_cast<int>(p.X);
+        }
+
+        public: int Y() const {
+            return static_cast<int>(p.Y);
+        }
+
+        private ~global bool pointMatch(ScreenPoint a, ScreenPoint b,
+                                        const int allowanceX=1,
+                                        const int allowanceY=1) {
+            return a.X > b.X - allowanceX && a.X < b.X + allowanceX
+                   && a.Y > b.Y - allowanceY && a.Y < b.Y + allowanceY;
+        }
+
+        private void setDest(ScreenPoint newDest) {
+            busy = true;
+            dir = calcDir();
+            dest = newDest;
+        }
+
+        public string Status() {
+            if (Crashed()) {
+                return str(boost::format("ERROR - %s") % Text());
+            } else if (busy) {
+                return "BUSY";
+            } else if (orbit) {
+                return orbit.get();
+            } else {
+                return "READY";
+            }
+        }
+
+        public string Text() const {
+            return text;
+        }
+
+        public void Update() {
+            checkForHitPlanets();
+            if (crashed) {
+                return;
+            }
+
+            LP3_COROUTINE_BEGIN(state); while(true) {
+                while (!pointMatch(dest, p, 1, 1)) {
+                    if (!pointMatch(dir, calcDir(), 1, 1)) {
+                        // Come to a stop and change directions.
+                        text = "Recalculating...";
+                        while(speed < 0) {
+                            speed -= accr * Clock::GetSpeedMod();
+                            if (speed < 0) {
+                                speed = 0;
+                            }
+                            move();
+                            LP3_YIELD();
+                        }
+                        setDest(dest);
+                    } else {
+                        // Looks good? Continue...
+                        text = str(boost::format("Seeking: %d, %d")
+                                   % p.X % p.Y);
+                        speed += accr * Clock::GetSpeedMod();
+                        if (speed > maxSpeed) {
+                            speed = maxSpeed;
+                        }
+                        move();
+                        LP3_YIELD();
+                    }
+                }
+                busy = false;
+                if (orbit) {
+                    text = str(boost::format("Orbitting %s") % orbit.get());
+                } else {
+                    text = "Command?";
+                }
+                LP3_YIELD();
+            } LP3_COROUTINE_END();
+        }
+    };
+}

@@ -1,0 +1,35 @@
+~import std::string;
+~import Lp3::Engine::Gfx::Geometry::ScreenPoint;
+
+
+namespace Cat {
+
+    class Planet {
+
+        private string name;
+        private ScreenPoint p;
+
+        public Planet(float x, float y, string name)
+        :   name(name)
+        ,   p({x, y}) {
+        }
+
+        public string Name() const {
+            return name;
+        }
+
+        public ScreenPoint P() const {
+            return p;
+        }
+
+        public int X() const {
+            return static_cast<int>(p.X);
+        }
+
+        public int Y() const {
+            return static_cast<int>(p.Y);
+        }
+
+    };
+
+}

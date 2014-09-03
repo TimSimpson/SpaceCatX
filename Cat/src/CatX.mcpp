@@ -1,0 +1,285 @@
+/**
+ *
+ *  Draw Text
+ *
+ *  This executable loads a bitmap and uses it to write text to the screen.
+ *
+ */
+~unit CatX type=exe;
+
+~import Lp3::Engine::Time::Clock;
+~import boost::format;
+~import LP3_LOG_DEBUG;
+~import Lp3::Engine::Gfx::BitmapReader;
+~import LP3_COROUTINE;
+~import Lp3::Engine::Coroutine::CoroutineState;
+~import Lp3::Engine::Gfx::GfxManager;
+~import Lp3::Engine::Gfx::GradientRenderer;
+~import Lp3::Engine::Gfx::Image;
+~import Lp3::Engine::Gfx::ImageMemory;
+~import Lp3::Engine::Resources::InputFileStream;
+~import Lp3::Engine::Gfx::InternalPixel;
+~import Lp3::Engine::Gfx::NonTexturedFlatQuad;
+~import Lp3::Engine::Gfx::Pixel;
+~import Lp3::Engine::Gfx::PixelDiff;
+~import Lp3::Engine::Resources::ReadStreamPtr;
+~import Lp3::Engine::Gfx::Renderer;
+~import Lp3::Engine::Gfx::Screen;
+~import Lp3::Engine::Gfx::ScreenObject;
+~import Lp3::Engine::Gfx::ScreenObjectPtr;
+~import std::string;
+~import Lp3::Engine::Gfx::Texture;
+~import Lp3::Engine::Gfx::TexturePtr;
+~import Lp3::Engine::Gfx::TileRenderer;
+~import Lp3::Engine::Gfx::TileSet;
+~import Lp3::Engine::Gfx::Geometry::TexturedQuadSrc;
+~import std::vector;
+~import Lp3::Engine::Gfx::VertexPixel;
+~import std::vector;
+
+~import Cat::SpaceCat;
+~import Cat::Planet;
+
+~block "cpp" :=
+
+#define LP3_MICROMAIN_WITH_GFX_DEPS true
+#include <Lp3/Engine/MicroMain.h>
+
+
+#include <CatServer.hpp>
+#include <boost/lexical_cast.hpp>
+#include <thread>
+
+const auto red = VertexPixel::Create(0xFF, 0x00, 0x00, 0xFF);
+const auto green = VertexPixel::Create(0x00, 0xFF, 0x00, 0xFF);
+const auto blue = VertexPixel::Create(0x00, 0x00, 0xFF, 0xFF);
+//const auto textBg = VertexPixel::Create(0x22, 0x22, 0x55, 0x11);
+//const auto textBgEnd = VertexPixel::Create(0x00, 0x00, 0x00, 0x11);
+const auto textBg = VertexPixel::Create(64, 64, 255, 0xFF);
+const auto textBgEnd = VertexPixel::Create(0x00, 0x00, 0x00, 0x88);
+const auto orange = VertexPixel::Create(255, 132, 0, 0xFF);
+
+const auto white = VertexPixel::Create(255, 255, 255, 0xFF);
+
+
+using namespace Lp3::Engine::Gfx::Geometry;
+
+
+struct Star
+{
+    CoroutineState state;
+    ScreenPoint p;
+    float speed;
+
+    Star(ScreenPoint p, const float speed)
+    :   p(p),
+        speed(speed)
+    {}
+
+    Star()
+    :   p({-16, 24}), speed(1)
+    {}
+
+    void Draw(Renderer & renderer)
+    {
+        const float z = 0.11f + ((p.Y / 480.0f) * 0.10f);
+//        tr.Write({p.X, p.Y}, z, {12, 6});
+        renderer.Quad(p.X, p.Y, 2, 2, 0.25f, white);
+    }
+
+    void update()
+    {
+        LP3_COROUTINE_BEGIN(state);
+            while(true)
+            {
+                while(p.X < 640)
+                {
+                    p.X += speed * Clock::GetSpeedMod();
+                    LP3_YIELD();
+                }
+                p = { -16, p.Y };
+            }
+        LP3_COROUTINE_END();
+    }
+};
+
+
+inline const SpriteCoordinates Coord(ScreenPoint p, Size2d<float> size)
+{
+    return { p, {p.X + size.Width - 1, p.Y + size.Height - 1}};
+}
+
+
+
+class GraphicsObject : public ScreenObject
+{
+    float fakeClock;
+    SpaceCat & cat;
+    vector<Planet> & planets;
+    TexturePtr textureSprites;
+    vector<Star> stars;
+    TexturePtr textureText;
+    std::unique_ptr<TileSet> tileSet;
+
+    public: GraphicsObject(SpaceCat & cat, vector<Planet> & planets,
+                           ImageMemory & memory)
+    :   cat(cat)
+    ,   planets(planets)
+    ,   fakeClock(0.0f)
+    {
+        LP3_LOG_DEBUG("Creating textureTexts...");
+        const Pixel colorKey(0, 0, 0, 0);
+        {
+            ReadStreamPtr input(new InputFileStream("Engine/text.bmp"));
+            textureText = memory.LoadTexture(input, colorKey);
+        }
+        {
+            ReadStreamPtr input(new InputFileStream("SpaceCatX/field.bmp"));
+            textureSprites = memory.LoadTexture(input, colorKey);
+        }
+        tileSet.reset(new TileSet(textureText, {16, 16}, {16, 16}));
+
+
+        for(int i = 0; i < 2500; i ++)
+        {
+            stars.push_back(Star(
+                {Clock::GetRandom(640), Clock::GetRandom(480)},
+                Clock::GetRandom(30)));
+        }
+    }
+
+    public: virtual void DrawOpaque(Renderer & renderer)
+    {
+        renderer.UseNoTexture();
+        GradientRenderer gr(renderer);
+        gr.VerticalQuad({0, 0}, {639, 479},
+                        0.1f,
+                        VertexPixel::Create(15, 0, 0, 255),
+                        VertexPixel::Create(0, 0, 15, 255));
+
+        gr.VerticalQuad({16, 320 + 24},
+                        {16 + (16 * 34), 320 + 24 + (5 * 16)},
+                        0.2f, textBg, textBgEnd);
+
+
+        // Draw the star.
+        for(Star & star : stars)
+        {
+            star.update();
+            star.Draw(renderer);
+        }
+    }
+
+    public: virtual void DrawTranslucent(Renderer & renderer)
+    {
+        TileRenderer tr = tileSet->StartRenderer(renderer);
+        //tr.Write({cat.X(), cat.Y()}, 0.5f, {13, 6});
+
+
+        tr.Write({32, 320 + 32}, 0.5f, cat.Text().c_str());
+
+        //const int fps = 1.0 / Clock::GetSpeedMod();
+        tr.Write({78, 16}, 0.5f, "SPACE CAT X");
+        std::string current = str(boost::format("Coordinates: %d, %d")
+                                 % cat.X() % cat.Y());
+        tr.Write({32, 32}, 0.5f, current.c_str());
+
+
+        // Draw stuff
+        renderer.UseTexture(textureSprites);
+
+        TexturedQuadSrc catSrc = (
+            cat.Crashed()
+                ? TexturedQuadSrc({ { 496, 50}, { 504+134, 50+109} })
+                : TexturedQuadSrc({ { 28, 34}, { 28+134, 34+96} })
+        );
+        renderer.TexturedQuad(Coord({cat.X() - 33, cat.Y() - 24}, {67,48}),
+                              0.5f, catSrc);
+
+        TexturedQuadSrc earthSrc = { { 282, 27}, { 282+141, 27 + 135} };
+        renderer.TexturedQuad(Coord({planets[0].X() - 35, planets[0].Y() - 35},
+                                    {70,70}),
+                              0.5f, earthSrc);
+        TexturedQuadSrc marsSrc = { { 35, 300}, { 35+140, 300+133} };
+        renderer.TexturedQuad(Coord({planets[1].X() - 35, planets[1].Y() - 35},
+                                    {70,70}),
+                              0.5f, marsSrc);
+
+
+
+    }
+};
+
+
+class Main
+{
+private:
+    std::vector<Planet> planets;
+    Cat::SpaceCat cat;
+    GfxManager manager;
+    Cat::CatServer catServer;
+    std::thread serverThread;
+
+public:
+    Main(const vector<string> & arguments
+         LP3_MICROMAIN_WINDOWS_ARGS(, HINSTANCE hInstance, HWND hWnd))
+    :   planets()
+    ,   cat(125, 258, planets)
+    ,   manager(LP3_MICROMAIN_WINDOWS_ARGS(hWnd))
+    ,   catServer()
+    {
+        planets.emplace_back(70, 270, "Earth");
+        planets.emplace_back(520, 80, "Mars");
+
+        LP3_ASSERT_TRUE_MESSAGE(arguments.size() > 1,
+                                "Wrong number of arguments.");
+
+        LP3_LOG_DEBUG("Initializing GFX...");
+
+        Screen & screen = manager.GetScreen(0);
+        ImageMemory & memory = screen.GetImageMemory();
+
+        ScreenObjectPtr obj(new GraphicsObject(cat, planets, memory));
+        screen.SetObject(obj);
+
+        Clock::Init(1000.0f/60.0f);
+
+        LP3_LOG_DEBUG("Finished GFX initialization.");
+
+        const int port = boost::lexical_cast<int>(arguments[1]);
+
+        serverThread = std::thread([this, port](){
+            catServer.RunServer(cat, port);
+        });
+
+        LP3_LOG_DEBUG("Finished initialization.");
+    }
+
+    ~Main() {
+        LP3_LOG_DEBUG("Shutting down, good-bye.");
+        catServer.Stop();
+        serverThread.join();
+
+    }
+
+
+    void Iterate() {
+        Clock::NextFrame();
+        cat.Update();
+        manager.Render();
+    }
+
+    #ifdef LP3_COMPILE_TARGET_WINDOWS
+        void WindowsMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+            switch(message){
+                case WM_SIZE:
+                    manager.Resize({ LOWORD(lParam), HIWORD(lParam) });
+                    break;
+                default:
+                    break;
+            }
+        }
+    #endif
+};
+
+LP3_MICROMAIN(Main, "Lp3::Engine::Gfx::DrawText");

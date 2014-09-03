@@ -1,0 +1,27 @@
+import boost ;
+boost.use-project 1.55 ;
+
+using testing ;
+
+
+project GroundControl
+    :   requirements
+        <library>/boost//headers
+        <library>/boost//date_time
+        <library>/boost//unit_test_framework
+    ;
+
+
+
+exe client
+    :   src/client.cpp
+    ;
+
+exe GroundControl
+    :   src/GroundControl.cpp
+    ;
+
+install exe
+    :   client
+        GroundControl
+    ;
