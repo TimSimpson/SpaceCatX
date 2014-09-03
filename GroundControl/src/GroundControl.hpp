@@ -3,7 +3,8 @@
 
 #include <iostream>
 #include "CatClient.hpp"
-
+#include "Seeker.hpp"
+#include "tmi.hpp"
 
 template<typename ClientType>
 class Cat {
@@ -50,54 +51,35 @@ private:
 };
 
 
-struct MovementData {
-    int X, Y;
-};
-
-
-template<typename CatType>
-struct MovementCalculator {
-
-    MovementData operator()(CatType & cat) {
-        MovementData result = {0,0};  // owl face, holding telephone
-        if (cat.X < 480) {
-            result.X = 100;
-        } else if (cat.X > 560) {
-            result.X = -100;
-        }
-        if (cat.Y > 120) {
-            result.Y = -5;
-        } else if (cat.Y < 40) {
-            result.Y = 5;
-        }
-        return result;
+template<typename CatType, typename ClientType, typename CalcType>
+bool SeekMars(CatType & cat, ClientType & client, CalcType & calc) {
+    cat.Refresh();
+    const auto movement = calc(cat);
+    if (movement.X != 0) {
+        cat.MoveX(movement.X);
     }
-};
+    if (movement.Y != 0) {
+        cat.MoveY(movement.Y);
+    }
 
+    cat.AssertNotCrashed();
+    if (client.Status() == "Mars") {
+        return true;
+    }
+    return false;
+}
 
 void GroundControl() {
     CatClient client("localhost", "434");
     Cat<CatClient> cat(client);
 
-    MovementCalculator<decltype(cat)> calc;
+    MovementCalculatorA<decltype(cat)> calc;
 
     // Try to reach 520, 80
-    while(true) {
-        cat.Refresh();
-        const auto movement = calc(cat);
-        if (movement.X != 0) {
-            cat.MoveX(movement.X);
-        }
-        if (movement.Y != 0) {
-            cat.MoveY(movement.Y);
-        }
-
-        cat.AssertNotCrashed();
-        if (client.Status() == "Mars") {
-            std::cout << "Space Cat X has landed on Mars.\n";
-            return;
-        }
+    while(!SeekMars(cat, client, calc)) {
     }
+    std::cout << "Space Cat X has landed safely on Mars.\n";
+    return;
 }
 
 #endif
